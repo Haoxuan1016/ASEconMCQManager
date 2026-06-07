@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>AS Economics MCQ Question Browser</title>
+    <link rel="stylesheet" href="web/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <h1>AS Economics MCQ Browser</h1>
+        <span id="summaryText"></span>
+      </div>
+      <div class="filters" aria-label="Question filters">
+        <section class="filter-block" aria-label="Difficulty">
+          <span class="filter-label">Difficulty</span>
+          <div id="difficultyButtons" class="segmented"></div>
+        </section>
+        <section class="filter-block topic-block" aria-label="Topic">
+          <span class="filter-label">Topic</span>
+          <select id="topicSelect"></select>
+        </section>
+        <label class="type-toggle">
+          <input id="typeCToggle" type="checkbox">
+          <span>Type C</span>
+        </label>
+      </div>
+    </header>
+    <div id="runtimeNotice" class="runtime-notice" hidden></div>
+
+    <main class="workspace">
+      <aside class="question-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Questions</h2>
+            <span id="resultCount"></span>
+          </div>
+          <input id="paperSearch" type="search" placeholder="Search paper or Q no.">
+        </div>
+        <div id="questionList" class="question-list" aria-live="polite"></div>
+      </aside>
+
+      <section class="viewer-panel">
+        <div class="viewer-head">
+          <div>
+            <h2 id="activeTitle">Select a question</h2>
+            <span id="activeMeta"></span>
+          </div>
+          <a id="openPdfLink" class="open-link" target="_blank" rel="noreferrer">Open PDF</a>
+        </div>
+        <iframe id="pdfViewer" title="Question paper PDF viewer"></iframe>
+        <section id="explanationPanel" class="explanation-panel" aria-live="polite"></section>
+      </section>
+    </main>
+
+    <script src="web/question-data.js"></script>
+    <script src="web/hard-explanations.js"></script>
+    <script src="web/app.js"></script>
+  </body>
+</html>
