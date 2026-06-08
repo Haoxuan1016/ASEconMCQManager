@@ -8,6 +8,7 @@
     typeC: false,
     search: "",
     activeId: null,
+    answerVisible: false,
   };
 
   const el = {
@@ -21,6 +22,7 @@
     resultCount: document.getElementById("resultCount"),
     pdfViewer: document.getElementById("pdfViewer"),
     explanationPanel: document.getElementById("explanationPanel"),
+    answerToggle: document.getElementById("answerToggle"),
     activeTitle: document.getElementById("activeTitle"),
     activeMeta: document.getElementById("activeMeta"),
     openPdfLink: document.getElementById("openPdfLink"),
@@ -91,6 +93,7 @@
 
   function setActive(question) {
     state.activeId = question.id;
+    state.answerVisible = false;
     const nextSrc = pdfSrc(question, `${question.id}-${Date.now()}`);
     el.activeTitle.innerHTML = `
       <span class="active-question-number">#${escapeHtml(question.questionNumber)}</span>
@@ -105,9 +108,11 @@
 
   function renderExplanation(question) {
     const explanation = hardExplanations.explanations[question.id];
-    if (!explanation) {
+    if (!explanation || !state.answerVisible) {
       el.explanationPanel.classList.remove("visible");
       el.explanationPanel.innerHTML = "";
+      el.answerToggle.hidden = !explanation;
+      el.answerToggle.textContent = explanation ? "Show Answer" : "No Answer";
       return;
     }
 
@@ -131,6 +136,8 @@
       <div class="choice-grid">${choices}</div>
     `;
     el.explanationPanel.classList.add("visible");
+    el.answerToggle.hidden = false;
+    el.answerToggle.textContent = "Hide Answer";
   }
 
   function renderDifficultyButtons() {
@@ -243,6 +250,14 @@
     el.paperSearch.addEventListener("input", () => {
       state.search = el.paperSearch.value.trim().toLowerCase();
       render();
+    });
+    el.answerToggle.addEventListener("click", () => {
+      const question = bank.questions.find((item) => item.id === state.activeId);
+      if (!question || !hardExplanations.explanations[question.id]) {
+        return;
+      }
+      state.answerVisible = !state.answerVisible;
+      renderExplanation(question);
     });
     state.activeId = bank.questions[0]?.id || null;
     if (bank.questions[0]) {

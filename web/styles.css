@@ -323,7 +323,14 @@ body.has-runtime-notice .workspace {
   overflow: hidden;
 }
 
-.open-link {
+.viewer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.open-link,
+.answer-toggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -331,11 +338,20 @@ body.has-runtime-notice .workspace {
   height: 34px;
   padding: 0 12px;
   border-radius: 8px;
+  border: 0;
   background: var(--teal);
   color: #ffffff;
   font-size: 13px;
   font-weight: 800;
   text-decoration: none;
+  cursor: pointer;
+}
+
+.answer-toggle {
+  min-width: 118px;
+  border: 1px solid var(--line);
+  background: #ffffff;
+  color: var(--teal);
 }
 
 #pdfViewer {
@@ -476,5 +492,13 @@ body.has-runtime-notice .workspace {
 
   .open-link {
     width: 100%;
+  }
+
+  .viewer-actions {
+    width: 100%;
+  }
+
+  .answer-toggle {
+    flex: 1;
   }
 }

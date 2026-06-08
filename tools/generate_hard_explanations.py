@@ -44,6 +44,22 @@ TOPIC_LANGUAGE = {
     "international-economic-issues": "trade, balance-of-payments, or exchange-rate relationship",
 }
 
+COMPACT_PHRASE_REPLACEMENTS = [
+    ("Abudgetsurplusbecomesabudgetdeficitinyear3", "A budget surplus becomes a budget deficit in year 3"),
+    ("Nationaldebtislikelytobefallingbytheendofyear3", "National debt is likely to be falling by the end of year 3"),
+    ("Thecurrentaccountbalanceisinequilibriuminyear2", "The current account balance is in equilibrium in year 2"),
+    ("Theeconomyisatfullemploymentequilibriuminyear2", "The economy is at full employment equilibrium in year 2"),
+    ("budgetsurplus", "budget surplus"),
+    ("budgetdeficit", "budget deficit"),
+    ("Nationaldebt", "National debt"),
+    ("currentaccount", "current account"),
+    ("fullemployment", "full employment"),
+    ("equilibriuminyear", "equilibrium in year"),
+    ("likelytobe", "likely to be"),
+    ("fallingby", "falling by"),
+    ("theendofyear", "the end of year"),
+]
+
 
 def download_pdf(url: str) -> bytes:
     request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -90,9 +106,39 @@ def compact_option(option: str) -> str:
     option = option.strip()
     if not option:
         return "this option"
+    if " " not in option and len(option) > 36 and not re.fullmatch(r"[$£€]?\d[\d,.]*(?:\.\d+)?(?:%|bn|m)?", option, re.IGNORECASE):
+        repaired = option
+        for before, after in COMPACT_PHRASE_REPLACEMENTS:
+            repaired = repaired.replace(before, after)
+        repaired = re.sub(r"([a-z])([A-Z])", r"\1 \2", repaired)
+        repaired = re.sub(r"(year)(\d)", r"\1 \2", repaired)
+        repaired = re.sub(r"\s+", " ", repaired).strip()
+        if repaired != option:
+            return repaired
     if len(option) > 90:
         return option[:87].rstrip() + "..."
     return option
+
+
+def norm_text(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip().lower()
+
+
+def compact_text(text: str) -> str:
+    return re.sub(r"\s+", "", text).lower()
+
+
+def has_any(text: str, phrases: list[str]) -> bool:
+    lower = norm_text(text)
+    compact = compact_text(text)
+    return any(phrase in lower or phrase.replace(" ", "") in compact for phrase in phrases)
+
+
+def sentence(text: str) -> str:
+    text = text.strip()
+    if not text:
+        return text
+    return text if text[-1] in ".?!" else text + "."
 
 
 def reasoning_focus(question: dict, question_text: str) -> str:
@@ -102,27 +148,194 @@ def reasoning_focus(question: dict, question_text: str) -> str:
     return TOPIC_LANGUAGE.get(question["topic"], "the relevant economic relationship")
 
 
+def question_family(question: dict, question_text: str) -> dict:
+    if has_any(question_text, ["budget deficit", "budget surplus", "government spending", "government revenue", "interest rate", "monetary policy", "fiscal policy", "contractionary", "expansionary"]):
+        return {
+            "name": "macroeconomic policy or budget balance",
+            "rule": "Compare government revenue with government spending for the budget position, and classify policy by its effect on aggregate demand: higher taxes, lower spending, and higher interest rates are contractionary.",
+            "correct": "The correct option follows the budget arithmetic or policy direction asked for in the stem.",
+            "wrong": "This option has the wrong policy direction, confuses a budget surplus with a deficit, or describes an outcome not supported by the data.",
+        }
+    if question.get("typeC") or has_any(question_text, ["gross national income", "gross domestic product", "national income", "gdp", "gni", "basic prices", "market prices", "income accounts"]):
+        return {
+            "name": "national income accounting",
+            "rule": "Use the national-income identity stated in the question, such as GNI = GDP + net factor income from abroad, GDP at market prices = GDP at basic prices + indirect taxes - subsidies, or injections = withdrawals for equilibrium income.",
+            "correct": "The correct option is the only one that uses the named rows in the table with the right add/subtract direction and keeps the units unchanged.",
+            "wrong": "This option is inconsistent with the national-income identity, usually because it adds an item that should be subtracted, subtracts an item that should be added, or uses a row that is not part of the requested measure.",
+        }
+    if has_any(question_text, ["cross elasticity", "income elasticity", "price elasticity of demand", "price elasticity of supply", "ped", "pes"]):
+        return {
+            "name": "elasticity calculation or interpretation",
+            "rule": "Use elasticity = percentage change in quantity divided by percentage change in the relevant price or income, and keep the sign because substitutes, inferior goods, and supply responses have different signs.",
+            "correct": "The correct option gives the percentage-change ratio, sign, or curve interpretation that matches the elasticity definition in the stem.",
+            "wrong": "This option fails the elasticity test because it uses the wrong denominator, ignores the sign, reverses cause and effect, or treats an elastic response as inelastic.",
+        }
+    if has_any(question_text, ["exchange rate", "depreciation", "appreciation", "tariff", "quota", "terms of trade", "balance of payments", "current account", "exports", "imports"]):
+        return {
+            "name": "international trade or exchange-rate analysis",
+            "rule": "Apply the trade rule directly: exports minus imports gives a trade balance, terms of trade compare export prices with import prices, and a depreciation makes domestic currency cheaper while an appreciation makes it dearer.",
+            "correct": "The correct option follows the direction of the trade balance, exchange-rate movement, or terms-of-trade change implied by the data.",
+            "wrong": "This option reverses the currency or trade effect, uses the goods balance when the question asks for a wider balance, or treats a cause as if it were the final outcome.",
+        }
+    if has_any(question_text, ["inflation", "cpi", "consumer prices index", "real gdp", "real value", "index number", "recession", "unemployment rate", "labour force"]):
+        return {
+            "name": "macroeconomic data interpretation",
+            "rule": "Use the data definition: inflation is a rise in the price level, disinflation is a falling positive inflation rate, real values adjust for inflation, unemployment rate = unemployed / labour force x 100, and a recession needs falling real GDP over the relevant period.",
+            "correct": "The correct option applies the macroeconomic definition to the numbers rather than only noticing whether a number is high or low.",
+            "wrong": "This option misuses the macro definition, for example by confusing disinflation with deflation, nominal with real values, or population with the labour force.",
+        }
+    if has_any(question_text, ["comparative advantage", "specialisation", "production possibility", "ppc", "opportunity cost"]):
+        return {
+            "name": "PPC, opportunity cost, or specialisation",
+            "rule": "Compare opportunity costs from the PPC or output data, then allocate specialisation to the producer with the lower opportunity cost rather than the larger absolute output.",
+            "correct": "The correct option follows the opportunity-cost comparison and then applies the resulting specialisation or PPC movement.",
+            "wrong": "This option is wrong because it relies on absolute output, an inefficient point, or the wrong opportunity-cost trade-off.",
+        }
+    if has_any(question_text, ["tax", "subsidy", "gini", "inequality", "progressive", "proportional", "regressive", "market failure", "external"]):
+        return {
+            "name": "government intervention or inequality data",
+            "rule": "Apply the intervention rule: taxes and subsidies shift costs or prices, proportional tax keeps the tax rate constant, progressive tax raises the average tax rate, and a higher Gini coefficient means more inequality.",
+            "correct": "The correct option matches the policy or inequality definition after comparing the relevant rates, shifts, or coefficients.",
+            "wrong": "This option uses the wrong policy effect, compares absolute tax paid instead of tax rate, or reads the inequality measure in the wrong direction.",
+        }
+    if has_any(question_text, ["consumer surplus", "producer surplus", "area", "diagram", "curve", "equilibrium", "supply curve", "demand curve"]):
+        return {
+            "name": "diagram or surplus reading",
+            "rule": "Read the diagram by matching each labelled point or area to the correct economic meaning: equilibrium is where curves meet, consumer surplus is above price and below demand, and producer surplus is below price and above supply.",
+            "correct": "The correct option identifies the labelled movement, point, or area that has the economic meaning asked for in the stem.",
+            "wrong": "This option misreads the diagram by choosing the wrong area, treating a movement along a curve as a shift, or confusing the buyer and seller side of the market.",
+        }
+    return {
+        "name": reasoning_focus(question, question_text),
+        "rule": f"Apply the relevant {reasoning_focus(question, question_text)} carefully to the exact wording and data in the question.",
+        "correct": "The correct option is the one that satisfies all the conditions in the question rather than only one visible clue.",
+        "wrong": "This option misses at least one condition in the stem or applies the right concept in the wrong direction.",
+    }
+
+
+def worked_method(question: dict, question_text: str, family: dict) -> str:
+    text = norm_text(question_text)
+    compact = compact_text(question_text)
+    if "grossnationalincome" in compact or "gni" in compact:
+        return "For GNI, start with GDP, add factor income earned by residents abroad, and subtract factor income earned domestically by non-residents."
+    if "gdpatbasicprices" in compact and "marketprices" in compact:
+        return "To move from GDP at basic prices to market prices, add indirect taxes and subtract subsidies."
+    if "grossdomesticproductatbasicprices" in compact or ("basicprices" in compact and "marketprices" in compact):
+        return "To move from GDP at market prices to basic prices, subtract indirect taxes and add subsidies."
+    if "equilibriumrealoutput" in compact:
+        return "For equilibrium real output, calculate aggregate demand as C + I + G + X - M and choose the row where this equals real output."
+    if "equilibriumlevelofnationalincome" in compact:
+        return "For equilibrium national income, compare injections with withdrawals and choose the income level where they are equal."
+    if "unemploymentrate" in compact:
+        return "The unemployment rate is unemployed people divided by the labour force, multiplied by 100."
+    if "open economy" in text or "openeconomy" in compact:
+        return "Use Y = C + I + G + X - M and the injections-withdrawals condition to infer the export-import combination."
+    if "cross elasticity" in text:
+        return "Cross elasticity equals percentage change in demand for the related good divided by percentage change in the other good's price."
+    if "income elasticity" in text or "incomeelasticity" in compact:
+        return "Income elasticity equals percentage change in quantity demanded divided by percentage change in income, so the sign shows whether the good is normal or inferior."
+    if "price elasticity of demand" in text or "ped" in text:
+        return "Price elasticity of demand compares the percentage change in quantity demanded with the percentage change in price."
+    if "price elasticity of supply" in text or "pes" in text:
+        return "Price elasticity of supply compares the percentage change in quantity supplied with the percentage change in price."
+    if "consumer surplus" in text and "producer surplus" in text:
+        return "Consumer surplus is the area below demand and above price, while producer surplus is the area above supply and below price."
+    if "consumer surplus" in text:
+        return "Consumer surplus is the difference between what buyers are willing to pay and what they actually pay."
+    if "producer surplus" in text:
+        return "Producer surplus is the difference between the market price received and the minimum price producers would accept."
+    if "terms of trade" in text or "termsoftrade" in compact:
+        return "Terms of trade is export price index divided by import price index, multiplied by 100."
+    if "balance of payments" in text or "current account" in text:
+        return "For balance-of-payments questions, keep goods, services, income, and transfers separate and add only the components requested."
+    if "exchange rate" in text or "exchangerate" in compact:
+        return "For exchange rates, check which currency is being priced and whether the change is an appreciation or depreciation before judging exports, imports, or prices."
+    if "inflation" in text and "disinflation" in text:
+        return "Disinflation means the inflation rate is still positive but falling, whereas deflation means the price level is falling."
+    if "consumer prices index" in text or "cpi" in text:
+        return "For CPI questions, convert nominal values into real values by adjusting for the price index."
+    if "real gdp" in text or "index of gdp" in text:
+        return "For real GDP index data, compare consecutive quarters and remember that a recession requires a sustained fall in real output."
+    if "comparative advantage" in text:
+        return "Comparative advantage is based on lower opportunity cost, not lower money cost or higher absolute output."
+    if "specialisation" in text or "productionpossibilit" in compact:
+        return "For specialisation/PPC questions, calculate what each country gives up to produce one more unit of the other good."
+    if "gini" in text:
+        return "A higher Gini coefficient means greater income inequality, while a lower Gini coefficient means more equal income distribution."
+    if "proportionalincometax" in compact:
+        return "A proportional income tax keeps the same average tax rate at each income level, even though the amount paid rises."
+    if "progressive" in text and "tax" in text:
+        return "A progressive income tax makes the average tax rate rise as income rises."
+    if "budget" in text and ("spending" in text or "revenue" in text):
+        return "Budget balance equals government revenue minus government spending, so a positive value is a surplus and a negative value is a deficit."
+    if "contractionary" in text:
+        return "A contractionary policy reduces aggregate demand, usually through higher taxes, lower government spending, or higher interest rates."
+    return family["rule"]
+
+
+def option_numbers(option: str) -> list[float]:
+    values = []
+    for raw in re.findall(r"[-+]?\d+(?:\.\d+)?", option.replace(",", "")):
+        try:
+            values.append(float(raw))
+        except ValueError:
+            pass
+    return values
+
+
+def is_numeric_option(option: str) -> bool:
+    stripped = option.strip()
+    if not stripped:
+        return False
+    nums = option_numbers(stripped)
+    if re.search(r"[$£€%]", stripped):
+        return bool(nums)
+    if len(nums) >= 2 and len(re.sub(r"[\d\s.,+\-–$£€%A-Za-z]", "", stripped)) <= 2:
+        return True
+    return bool(re.fullmatch(r"\s*[$£€]?\s*[-+]?\d[\d\s,.]*(?:\.\d+)?\s*(?:%|bn|m|million|billion)?\s*", stripped, re.IGNORECASE))
+
+
+def option_specific_reason(option: str, answer_text: str, is_correct: bool) -> str:
+    option = compact_option(option)
+    answer_text = compact_option(answer_text)
+    if is_correct:
+        return f"The option '{option}' is the final answer after applying the method, so it is not merely a keyword match."
+    if option == "this option":
+        return f"Compared with the correct option '{answer_text}', this choice cannot be supported by the data shown."
+    option_vals = option_numbers(option)
+    answer_vals = option_numbers(answer_text)
+    if option_vals and answer_vals and is_numeric_option(option) and is_numeric_option(answer_text):
+        if len(option_vals) == 1 and len(answer_vals) == 1:
+            if option_vals[0] < answer_vals[0]:
+                return f"The value in this option is below the required result '{answer_text}', so it usually comes from omitting an addition or subtracting too much."
+            if option_vals[0] > answer_vals[0]:
+                return f"The value in this option is above the required result '{answer_text}', so it usually comes from adding too much or failing to subtract the relevant item."
+        return f"The numerical pattern in '{option}' does not match the correct pattern '{answer_text}', so at least one row, percentage change, or sign has been used incorrectly."
+    return f"Compared with the correct option '{answer_text}', the statement '{option}' applies the concept in the wrong direction or to the wrong part of the question."
+
+
 def explanation_for(question: dict, question_text: str, answer: str) -> dict:
     options = option_texts(question_text)
-    focus = reasoning_focus(question, question_text)
+    family = question_family(question, question_text)
+    method = worked_method(question, question_text, family)
     correct_text = compact_option(options.get(answer, ""))
-    conclusion = f"The answer is {answer}: {correct_text} is the option that best follows from {focus} in the question."
+    conclusion = f"The answer is {answer}: {correct_text} follows from {family['name']}."
     choice_explanations = {}
     for label in "ABCD":
         option = compact_option(options.get(label, ""))
         if label == answer:
             sentences = [
-                f"{label} is correct because it matches the answer key and the required {focus}.",
-                f"The wording or calculation in {option} is consistent with the data and the economic concept being tested.",
-                "It keeps the direction of the change, the relevant formula, or the diagram reading aligned with the question stem.",
-                "Therefore it is the strongest choice once the distractors are checked against the same reasoning.",
+                sentence(f"{label} is correct because the required method gives '{option}'"),
+                sentence(method),
+                sentence(family["correct"]),
+                sentence(option_specific_reason(options.get(label, ""), options.get(answer, ""), True)),
             ]
         else:
             sentences = [
-                f"{label} is not correct because {option} does not follow the required {focus}.",
-                f"It is a distractor that usually comes from using the wrong sign, wrong item, wrong comparison, or wrong diagram area.",
-                f"Compared with the correct answer {answer}, it misses at least one condition stated in the question stem.",
-                "So this option should be rejected after applying the relevant calculation or cause-and-effect relationship.",
+                sentence(f"{label} is not correct because it gives '{option}' instead of the required answer '{correct_text}'"),
+                sentence(method),
+                sentence(family["wrong"]),
+                sentence(option_specific_reason(options.get(label, ""), options.get(answer, ""), False)),
             ]
         choice_explanations[label] = sentences
     return {
